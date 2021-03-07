@@ -1083,7 +1083,7 @@ void BS2PC_ConvertTexturesToId() {
 				*(paletteId++) = colorGbx[1];
 				*(paletteId++) = colorGbx[2];
 			} else {
-				unsigned int r = min(colorGbx[0], 127), g = min(colorGbx[1], 127), b = min(colorGbx[2], 127);
+				unsigned int r = MIN(colorGbx[0], 127), g = MIN(colorGbx[1], 127), b = MIN(colorGbx[2], 127);
 				*(paletteId++) = (r << 1) | (r >> 6);
 				*(paletteId++) = (g << 1) | (g >> 6);
 				*(paletteId++) = (b << 1) | (b >> 6);

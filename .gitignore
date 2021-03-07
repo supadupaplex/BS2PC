@@ -1,0 +1,7 @@
+obj/
+bin/
+release/
+zlib/zlib-1.2.11/
+zlib.h
+zconf.h
+buildinfo.c

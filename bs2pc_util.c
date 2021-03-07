@@ -87,6 +87,30 @@ void BS2PC_WriteFile(const char *fileName, void *data, unsigned int size) {
 
 // Zlib compression.
 
+#ifdef ZLIB_STATIC // [SDP] Static/dynamic link switch
+
+typedef int (*bs2pc_zlib_inflateInit__t)(z_streamp strm, const char *version, int stream_size);
+typedef int (*bs2pc_zlib_inflate_t)(z_streamp strm, int flush);
+typedef int (*bs2pc_zlib_inflateEnd_t)(z_streamp strm);
+typedef int (*bs2pc_zlib_deflateInit__t)(z_streamp strm, int level, const char *version, int stream_size);
+typedef uLong (*bs2pc_zlib_deflateBound_t)(z_streamp strm, uLong sourceLen);
+typedef int (*bs2pc_zlib_deflate_t)(z_streamp strm, int flush);
+typedef int (*bs2pc_zlib_deflateEnd_t)(z_streamp strm);
+
+static bs2pc_zlib_inflateInit__t bs2pc_zlib_inflateInit_ = inflateInit_;
+static bs2pc_zlib_inflate_t bs2pc_zlib_inflate = inflate;
+static bs2pc_zlib_inflateEnd_t bs2pc_zlib_inflateEnd = inflateEnd;
+static bs2pc_zlib_deflateInit__t bs2pc_zlib_deflateInit_ = deflateInit_;
+static bs2pc_zlib_deflateBound_t bs2pc_zlib_deflateBound = deflateBound;
+static bs2pc_zlib_deflate_t bs2pc_zlib_deflate = deflate;
+static bs2pc_zlib_deflateEnd_t bs2pc_zlib_deflateEnd = deflateEnd;
+
+void BS2PC_InitializeZlib() {
+	return;
+}
+
+#else // ZLIB_STATIC
+
 static bool bs2pc_zlib_initialized = false;
 
 #ifdef _WIN32
@@ -144,6 +168,7 @@ void BS2PC_InitializeZlib() {
 
 	bs2pc_zlib_initialized = true;
 }
+#endif // ZLIB_STATIC
 
 void BS2PC_Decompress(const void *source, unsigned int sourceSize, void *target, unsigned int targetSize) {
 	z_stream stream;
