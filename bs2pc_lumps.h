@@ -24,6 +24,7 @@ enum {
 
 	LUMP_ID_COUNT
 };
+extern char *bs2pc_idLumpNames[LUMP_ID_COUNT];
 
 enum {
 	LUMP_GBX_PLANES,
@@ -45,6 +46,7 @@ enum {
 
 	LUMP_GBX_COUNT
 };
+extern char *bs2pc_gbxLumpNames[LUMP_GBX_COUNT];
 
 #pragma pack(push, 4)
 

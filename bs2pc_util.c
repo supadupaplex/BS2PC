@@ -1,3 +1,5 @@
+#pragma warning(disable : 4996)
+
 #include "bs2pc.h"
 #include <stdbool.h>
 #include <stdlib.h>
@@ -219,6 +221,18 @@ void *BS2PC_CompressWithSize(const void *source, unsigned int sourceSize, unsign
 	if (outTargetSize != NULL) {
 		*outTargetSize = targetSize + sizeof(unsigned int);
 	}
+
+	// [SDP] fix #7: give warning if resulting map file is too big
+	#define MiB	(float)(1024*1024)
+	float DecomprSize = sourceSize / MiB;
+	float ComprSize = *outTargetSize / MiB;
+	float TotalSize = DecomprSize + ComprSize;
+	fprintf(stderr, "\tDecompressed map size:\t %.2f MiB \n", DecomprSize);
+	fprintf(stderr, "\tCompressed map size:\t %.2f MiB \n", ComprSize);
+	fprintf(stderr, "\tTotal map size:\t\t %.2f MiB \n", TotalSize);
+	if (DecomprSize > 8.0f || TotalSize > 12.0f)
+		fputs("[WARNING] map file is too big and can cause crashes\n", stderr);
+
 	return target;
 }
 

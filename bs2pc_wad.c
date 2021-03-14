@@ -1,8 +1,12 @@
+#pragma warning(disable : 4996)
+
 #include "bs2pc.h"
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#define QSORT_WAD // [SDP] fix #2: WAD qsort/dumb search switch (IDK what is better, left both)
 
 typedef struct bs2pc_wadDirectory_s {
 	char *path;
@@ -59,6 +63,14 @@ typedef struct bs2pc_wad_s {
 } bs2pc_wad_t;
 
 static bs2pc_wad_t *bs2pc_wads = NULL;
+
+#ifdef QSORT_WAD
+int lmpcmp(const void * p1, const void * p2) {
+	bs2pc_wadLumpInfo_t *pl1 = (bs2pc_wadLumpInfo_t *) p1;
+	bs2pc_wadLumpInfo_t *pl2 = (bs2pc_wadLumpInfo_t *) p2;
+	return BS2PC_CompareTextureNames((const char *) pl1->name, (const char *) pl2->name);
+}
+#endif
 
 static void BS2PC_LoadWad(const char *fileName /* Assuming / slash */) {
 	FILE *file;
@@ -124,6 +136,12 @@ static void BS2PC_LoadWad(const char *fileName /* Assuming / slash */) {
 		fclose(file);
 		return;
 	}
+#ifdef QSORT_WAD
+	if (wad->lumpCount > 1) {
+		fputs("Qsorting WAD lumps...\n", stderr);
+		qsort(wad->lumps, wad->lumpCount, sizeof(*wad->lumps), lmpcmp);
+	}
+#endif
 	wad->next = bs2pc_wads;
 	bs2pc_wads = wad;
 
@@ -208,8 +226,10 @@ unsigned char *BS2PC_LoadTextureFromWad(const char *name) {
 
 	for (wad = bs2pc_wads; wad != NULL; wad = wad->next) {
 		const bs2pc_wadLumpInfo_t *lumps = wad->lumps;
-		unsigned int low = 0, mid, high = wad->lumpCount;
 		int difference;
+
+#ifdef QSORT_WAD
+		int low = 0, mid, high = wad->lumpCount;
 		while (low <= high) {
 			mid = low + ((high - low) >> 1);
 			difference = BS2PC_CompareTextureNames(lumps[mid].name, name);
@@ -223,7 +243,17 @@ unsigned char *BS2PC_LoadTextureFromWad(const char *name) {
 				low = mid + 1;
 			}
 		}
-
+#else // QSORT_WAD
+		unsigned int lmp;
+		// [SDP] fix #2: use dumb search for WAD textures because many WADs are unsorted
+		for (lmp = 0; lmp < wad->lumpCount; lmp++) {
+			difference = BS2PC_CompareTextureNames(lumps[lmp].name, name);
+			if (difference == 0) {
+				lumpInfo = &lumps[lmp];
+				break;
+			}
+		}
+#endif // QSORT_WAD
 		if (lumpInfo == NULL) {
 			continue;
 		}

@@ -8,13 +8,15 @@
 
 static float bs2pc_subdivideSize;
 
-#define BS2PC_MAX_POLY_VERTS 1024
+// [SDP] fix #1: increased caps
+#define BS2PC_MAX_POLY_VERTS 8192
+#define BS2PC_MAX_POLY_STRIPS 8192
+
 static float bs2pc_polyPositions[BS2PC_MAX_POLY_VERTS][3];
 #define BS2PC_POLY_POSITION_EPSILON 0.001f
 static unsigned int bs2pc_polyVertCount;
 
 #define BS2PC_MAX_POLY_STRIP_INDICES BS2PC_MAX_POLY_VERTS
-#define BS2PC_MAX_POLY_STRIPS 256
 typedef struct {
 	unsigned short firstIndex;
 	unsigned short indexCount;
@@ -355,7 +357,8 @@ unsigned char *BS2PC_SubdivideIdSurface(unsigned int faceIndex, unsigned int fac
 	bs2pc_polyStripSets[0].stripCount = 0;
 	bs2pc_polyVertCount = 0;
 	BS2PC_SubdividePolygon(numverts, verts);
-	BS2PC_MergeStrips();
+	if (bs2pc_doMergeStrips)	// [SDP] fix #6: skip BS2PC_MergeStrips() func call
+		BS2PC_MergeStrips();
 	stripSet = &bs2pc_polyStripSets[bs2pc_currentPolyStripSet];
 
 	subdivSize = 2 * sizeof(unsigned int) /* face index, vertex count */ +

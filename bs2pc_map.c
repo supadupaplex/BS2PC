@@ -1,3 +1,5 @@
+#pragma warning(disable : 4996)
+
 #include "bs2pc.h"
 #include <math.h>
 #include <stdbool.h>
@@ -5,6 +7,43 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+char *bs2pc_idLumpNames[LUMP_ID_COUNT] = {
+	"Entities",
+	"Planes",
+	"Textures",
+	"Vertices",
+	"Visibility",
+	"Nodes",
+	"Texinfo",
+	"Faces",
+	"Lightmaps",
+	"Clipnodes",
+	"Leafs",
+	"Marksurfaces",
+	"Edges",
+	"Surfedges",
+	"Models",
+};
+
+char *bs2pc_gbxLumpNames[LUMP_GBX_COUNT] = {
+	"Planes",
+	"Nodes",
+	"Leafs",
+	"Edges",
+	"Surfedges",
+	"Vertices",
+	"Hull0",
+	"Clipnodes",
+	"Models",
+	"Faces",
+	"Marksurfaces",
+	"Visibility",
+	"Lightmaps",
+	"Textures",
+	"Entities",
+	"Polygons",
+};
 
 unsigned char *bs2pc_idMap, *bs2pc_gbxMap;
 unsigned int bs2pc_idMapSize, bs2pc_gbxMapSize;
@@ -15,7 +54,7 @@ static unsigned int bs2pc_idTextureLumpSize;
 static bool *bs2pc_gbxTexturesSpecial = NULL; // Whether textures are special - texinfo needs this.
 
 static void BS2PC_ProcessGbxTextureLump() {
-	const dmiptex_gbx_t *texture = (const dmiptex_gbx_t *) BS2PC_GbxLump(LUMP_GBX_TEXTURES);
+	dmiptex_gbx_t *texture = (dmiptex_gbx_t *) BS2PC_GbxLump(LUMP_GBX_TEXTURES);
 	unsigned int index, count = BS2PC_GbxLumpCount(LUMP_GBX_TEXTURES);
 
 	if (count == 0) {
@@ -32,6 +71,12 @@ static void BS2PC_ProcessGbxTextureLump() {
 		const char *name = texture->name;
 		unsigned int width, height;
 
+		// [SDP] fix #8: skip resize (useful for PS2 texture harvesting only)
+		if (bs2pc_noResize) {
+			texture->width = texture->scaled_width;
+			texture->height = texture->scaled_height;
+		}
+
 		if (name[0] == '*' ||
 				bs2pc_strncasecmp(name, "sky", 3) == 0 ||
 				bs2pc_strncasecmp(name, "clip", 4) == 0 ||
@@ -42,10 +87,12 @@ static void BS2PC_ProcessGbxTextureLump() {
 
 		width = texture->width;
 		height = texture->height;
-		bs2pc_idTextureLumpSize += width * height +
-				(width >> 1) * (height >> 1) +
-				(width >> 2) * (height >> 2) +
-				(width >> 3) * (height >> 3);
+		// [SDP] fix #6: (wadonly, bs2>bsp) don't add bitmap size
+		if (!bs2pc_wadOnly)
+			bs2pc_idTextureLumpSize += width * height +
+					(width >> 1) * (height >> 1) +
+					(width >> 2) * (height >> 2) +
+					(width >> 3) * (height >> 3);
 
 		++texture;
 	}
@@ -79,9 +126,12 @@ static bs2pc_idTextureAdditionalInfo_t *bs2pc_idTextureAdditionalInfo = NULL;
 static unsigned int bs2pc_idAnimatedStart = UINT_MAX, bs2pc_idAnimatedCount = 0;
 static unsigned int bs2pc_gbxTextureDataSize = 0;
 
+// [SDP] fix #3: index of the last animated texture frame in texture lump
+unsigned int bs2pc_idAnimatedLast = UINT_MAX;
+
 static unsigned int BS2PC_FindAnimatedIdTexture(const char *sequenceName, unsigned char frame) {
 	char name[16];
-	unsigned int low, mid, high;
+	unsigned int tex;
 	int difference;
 
 	if (bs2pc_idAnimatedCount == 0) {
@@ -93,18 +143,14 @@ static unsigned int BS2PC_FindAnimatedIdTexture(const char *sequenceName, unsign
 	strncpy(name + 2, sequenceName, sizeof(name) - 3);
 	name[sizeof(name) - 1] = '\0';
 
-	low = bs2pc_idAnimatedStart;
-	high = bs2pc_idAnimatedStart + bs2pc_idAnimatedCount - 1;
-	while (low <= high) {
-		mid = low + ((high - low) >> 1);
-		difference = BS2PC_CompareTextureNames(bs2pc_idTextures[mid]->name, name);
+	/* [SDP] fix #3: use dumb search for animated texture frames because
+	 * many maps have unsorted texture lump
+	 */
+	unsigned int firstNonAnimated = bs2pc_idAnimatedLast + 1;
+	for (tex = bs2pc_idAnimatedStart; tex < firstNonAnimated; tex++) {
+		difference = BS2PC_CompareTextureNames(bs2pc_idTextures[tex]->name, name);
 		if (difference == 0) {
-			return mid;
-		}
-		if (difference > 0) {
-			high = mid - 1;
-		} else {
-			low = mid + 1;
+			return tex;
 		}
 	}
 
@@ -180,6 +226,7 @@ static void BS2PC_ProcessIdTextureLump() {
 
 	for (index = 0; index < validCount; ++index) {
 		const dmiptex_id_t *texture = bs2pc_idTextures[index];
+		const dmiptex_id_t *wadTex;
 		const char *name = texture->name;
 		bs2pc_idTextureAdditionalInfo_t *info = &bs2pc_idTextureAdditionalInfo[index];
 		unsigned int scaledWidth, scaledHeight;
@@ -189,6 +236,7 @@ static void BS2PC_ProcessIdTextureLump() {
 			if (bs2pc_idAnimatedStart == UINT_MAX) {
 				bs2pc_idAnimatedStart = index;
 			}
+			bs2pc_idAnimatedLast = index;
 			++bs2pc_idAnimatedCount;
 		} else if (name[0] == '!' || name[0] == '*' || bs2pc_strncasecmp(name, "water", 5) == 0) {
 			flags = SURF_DRAWTURB | SURF_DRAWTILED | SURF_SPECIAL | SURF_HASPOLYS;
@@ -209,8 +257,19 @@ static void BS2PC_ProcessIdTextureLump() {
 		info->animNext = UINT_MAX;
 		info->alternateAnims = UINT_MAX;
 
-		scaledWidth = BS2PC_TextureDimensionToGbx(texture->width);
-		scaledHeight = BS2PC_TextureDimensionToGbx(texture->height);
+		// [SDP] fix #5: calculate texture lump size based on WAD data
+		wadTex = (const dmiptex_id_t *)BS2PC_LoadTextureFromWad(name);
+		if (wadTex)
+		{
+			scaledWidth = BS2PC_TextureDimensionToGbx(wadTex->width);
+			scaledHeight = BS2PC_TextureDimensionToGbx(wadTex->height);
+		}
+		else
+		{
+			scaledWidth = BS2PC_TextureDimensionToGbx(texture->width);
+			scaledHeight = BS2PC_TextureDimensionToGbx(texture->height);
+		}
+
 		while (true) {
 			bs2pc_gbxTextureDataSize += scaledWidth * scaledHeight;
 			if (scaledWidth <= 8 || scaledHeight <= 8) {
@@ -221,8 +280,13 @@ static void BS2PC_ProcessIdTextureLump() {
 		}
 	}
 
+	/* [SDP] fix #3: safer processing of animated textures
+	 * - bs2pc_idAnimatedCount: how many animated textures
+	 * - bs2pc_idAnimatedStart: first animated texture index
+	 * - bs2pc_idAnimatedLast: last animated texture index
+	 */
 	if (bs2pc_idAnimatedCount != 0) {
-		unsigned int firstNonAnimated = bs2pc_idAnimatedStart + bs2pc_idAnimatedCount;
+		unsigned int firstNonAnimated = bs2pc_idAnimatedLast + 1;
 		for (index = bs2pc_idAnimatedStart; index < firstNonAnimated; ++index) {
 			const char *name = bs2pc_idTextures[index]->name;
 			unsigned int seq[10], altSeq[10], count = 1, altCount = 0, frame, found;
@@ -232,7 +296,7 @@ static void BS2PC_ProcessIdTextureLump() {
 				continue; // Shouldn't happen, but still, reject.
 			}
 			if (name[1] != '0') {
-				break; // Only the beginnings of the chains are needed, the rest will be found with binary search.
+				continue;
 			}
 
 			// Build the sequences.
@@ -464,13 +528,24 @@ static void BS2PC_AllocateIdMapFromGbx() {
 	memcpy(bs2pc_idMap, &headerId, sizeof(dheader_id_t));
 }
 
+// [SDP] fix #6: (szreport) added lump sizes report
+#define MiB	(float)(1024*1024)
+#define PRINT_LUMP_SZ(LUMP_NAME, LUMP_SZ) \
+	fprintf(stderr, "\t%-15s\t%.2f MiB\n", (LUMP_NAME), (LUMP_SZ) / MiB)
 static void BS2PC_AllocateGbxMapFromId() {
 	dheader_gbx_t headerGbx;
-	unsigned int mapSize;
+	unsigned int mapSize, lmp;
 
 	memset(&headerGbx, 0, sizeof(headerGbx));
 	headerGbx.version = BSPVERSION_GBX;
 	mapSize = (sizeof(headerGbx) + 15) & ~15;
+
+	if (bs2pc_szReport)
+	{
+		fputs(" BSP lump sizes:\n", stderr);
+		for (lmp = 0; lmp < LUMP_ID_COUNT; lmp++)
+			PRINT_LUMP_SZ(bs2pc_idLumpNames[lmp], BS2PC_IdLumpSize(lmp));
+	}
 
 	headerGbx.lumpofs[LUMP_GBX_PLANES] = mapSize;
 	headerGbx.lumpnum[LUMP_GBX_PLANES] = BS2PC_IdLumpSize(LUMP_ID_PLANES) / sizeof(dplane_id_t);
@@ -547,6 +622,13 @@ static void BS2PC_AllocateGbxMapFromId() {
 	headerGbx.lumpofs[LUMP_GBX_POLYS] = mapSize;
 	headerGbx.lumplen[LUMP_GBX_POLYS] = bs2pc_faceSubdivisionSize;
 	mapSize += (headerGbx.lumplen[LUMP_GBX_POLYS] + 15) & ~15;
+
+	if (bs2pc_szReport)
+	{
+		fputs(" BS2 lump sizes:\n", stderr);
+		for (lmp = 0; lmp < LUMP_GBX_COUNT; lmp++)
+			PRINT_LUMP_SZ(bs2pc_gbxLumpNames[lmp], (headerGbx.lumplen[lmp] + 15) & ~15);
+	}
 
 	bs2pc_gbxMapSize = mapSize;
 	bs2pc_gbxMap = (unsigned char *) BS2PC_Alloc(mapSize, true);
@@ -1016,8 +1098,13 @@ void BS2PC_ConvertTexturesToId() {
 	for (textureIndex = 0; textureIndex < textureCount; ++textureIndex) {
 		const dmiptex_gbx_t *textureGbx = &texturesGbx[textureIndex];
 		miptexOffsets[textureIndex] = miptexOffset;
-		miptexOffset += sizeof(dmiptex_id_t) +
-				textureGbx->width * textureGbx->height +
+		miptexOffset += sizeof(dmiptex_id_t);
+
+		// [SDP] fix #6: (wadonly, bs2>bsp) don't add bitmap size
+		if (bs2pc_wadOnly)
+			continue;
+
+		miptexOffset += textureGbx->width * textureGbx->height +
 				(textureGbx->width >> 1) * (textureGbx->height >> 1) +
 				(textureGbx->width >> 2) * (textureGbx->height >> 2) +
 				(textureGbx->width >> 3) * (textureGbx->height >> 3) +
@@ -1032,7 +1119,7 @@ void BS2PC_ConvertTexturesToId() {
 		unsigned int width, height;
 		const unsigned char *paletteGbx;
 		unsigned char *paletteId;
-		bool liquid;
+		bool keepColors;
 		unsigned int colorIndex;
 
 		memcpy(headerId->name, textureGbx->name, sizeof(headerId->name));
@@ -1040,6 +1127,12 @@ void BS2PC_ConvertTexturesToId() {
 		height = textureGbx->height;
 		headerId->width = width;
 		headerId->height = height;
+
+		if (bs2pc_wadOnly) {
+			// [SDP] fix #6: (wadonly, bs2>bsp) ignore textures stored in bs2
+			memset(headerId->offsets, 0x00, sizeof(headerId->offsets));
+			continue;
+		}
 
 		headerId->offsets[0] = sizeof(dmiptex_id_t);
 		headerId->offsets[1] = headerId->offsets[0] + width * height;
@@ -1063,7 +1156,8 @@ void BS2PC_ConvertTexturesToId() {
 		paletteId = textureId + headerId->offsets[3] + (width >> 3) * (height >> 3);
 		*((unsigned short *) paletteId) = 256;
 		paletteId += sizeof(unsigned short);
-		liquid = (textureGbx->name[0] == '!') ||
+		// [SDP] fix #9: '{' textures need the same treatment as '!'
+		keepColors = (textureGbx->name[0] == '!') || (textureGbx->name[0] == '{') ||
 				(textureGbx->name[0] >= '0' && textureGbx->name[0] <= '9' && textureGbx->name[1] == '!');
 		for (colorIndex = 0; colorIndex < 256; ++colorIndex) {
 			unsigned int colorIndexGbx, colorIndexLow;
@@ -1078,7 +1172,7 @@ void BS2PC_ConvertTexturesToId() {
 			}
 
 			colorGbx = paletteGbx + colorIndexGbx * 4;
-			if (liquid) {
+			if (keepColors) {
 				*(paletteId++) = colorGbx[0];
 				*(paletteId++) = colorGbx[1];
 				*(paletteId++) = colorGbx[2];
@@ -1107,8 +1201,39 @@ void BS2PC_ConvertTexturesToGbx() {
 
 	for (textureIndex = 0; textureIndex < textureCount; ++textureIndex, ++textureGbx, ++additionalInfo) {
 		const dmiptex_id_t *textureId = bs2pc_idTextures[textureIndex];
-		// Save for the case if a WAD has a differently sized texture.
-		unsigned int width = textureId->width, height = textureId->height;
+		/* [SDP] fix #4: take WAD texture size over BSP size to work
+		 * around texture scaling artifacts (manual power of 2 texture
+		 * scaling required to be done in WADs)
+		 * - bsp_with/bsp_height: bsp texture dimensions
+		 * - with/height: wad texture dimensions
+		 * - scaledWidth/scaledHeight: power of 2 dimensions
+		 */
+		unsigned int width, height, bsp_width, bsp_height;
+		const dmiptex_id_t * wadTex;
+		wadTex = (const dmiptex_id_t *)BS2PC_LoadTextureFromWad(textureId->name);
+		if (wadTex == NULL)
+		{
+			bsp_width = width = textureId->width;
+			bsp_height = height = textureId->height;
+		}
+		else
+		{
+			bsp_width = textureId->width;
+			bsp_height = textureId->height;
+			width = wadTex->width;
+			height = wadTex->height;
+#if 0 // [SDP] Debug
+			if (bsp_width != width)
+			{
+				fprintf(stderr, "Name: %s \n", textureId->name);
+				fprintf(stderr, "bsp: %d x %d, wad: %d x %d, bs2: %d x %d\n",
+					bsp_width, bsp_height, width, height,
+					BS2PC_TextureDimensionToGbx(width),
+					BS2PC_TextureDimensionToGbx(height));
+			}
+#endif
+		}
+
 		unsigned int scaledWidth = BS2PC_TextureDimensionToGbx(width);
 		unsigned int scaledHeight = BS2PC_TextureDimensionToGbx(height);
 		unsigned int tempWidth, tempHeight;
@@ -1117,12 +1242,13 @@ void BS2PC_ConvertTexturesToGbx() {
 		bspoffset_t lastGbxMipOffset = gbxMipOffset;
 		unsigned int colorIndex;
 		unsigned char *colorGbx;
-		bool liquid = (textureId->name[0] == '!');
+		// [SDP] fix #9: '{' textures need the same treatment as '!'
+		bool keepColors = (textureId->name[0] == '!') || (textureId->name[0] == '{');
 
 		textureGbx->offset = gbxMipOffset;
 		textureGbx->palette = gbxPaletteOffset;
-		textureGbx->width = width;
-		textureGbx->height = height;
+		textureGbx->width = bsp_width;
+		textureGbx->height = bsp_height;
 		textureGbx->scaled_width = scaledWidth;
 		textureGbx->scaled_height = scaledHeight;
 		memcpy(textureGbx->name, textureId->name, sizeof(textureGbx->name));
@@ -1161,8 +1287,12 @@ void BS2PC_ConvertTexturesToGbx() {
 			textureGbx->anim_next = textureGbx->alternate_anims = UINT_MAX;
 		}
 
-		if (textureId->offsets[0] == 0 || textureId->offsets[1] == 0 ||
-				textureId->offsets[2] == 0 || textureId->offsets[3] == 0) {
+		// [SDP] fix #6: (wadonly, bsp>bs2) ignore textures stored in bsp
+		if (bs2pc_wadOnly ||
+				textureId->offsets[0] == 0 ||
+				textureId->offsets[1] == 0 ||
+				textureId->offsets[2] == 0 ||
+				textureId->offsets[3] == 0) {
 			textureId = (const dmiptex_id_t *) BS2PC_LoadTextureFromWad(textureId->name);
 			if (textureId != NULL && (textureId->offsets[0] == 0 || textureId->offsets[1] == 0 ||
 					textureId->offsets[2] == 0 || textureId->offsets[3] == 0)) {
@@ -1193,7 +1323,8 @@ void BS2PC_ConvertTexturesToGbx() {
 		} else {
 			unsigned int x, y;
 			char *dest = bs2pc_gbxMap + gbxMipOffset;
-			fprintf(stderr, "Texture %s not found or is incomplete in WADs, replacing with a checkerboard.\n", textureGbx->name);
+			fprintf(stderr, "[ERROR] Texture %-16s not found or is incomplete in WADs, replacing with a checkerboard.\n", textureGbx->name);
+			bs2pc_errors = true;
 			for (y = 0; y < tempHeight; ++y) {
 				for (x = 0; x < tempWidth; ++x) {
 					*(dest++) = (((((y & 15)) < 8) ^ (((x & 15)) < 8)) ? 0 : 255);
@@ -1228,7 +1359,7 @@ void BS2PC_ConvertTexturesToGbx() {
 				colorGbx = bs2pc_gbxMap + gbxPaletteOffset + colorIndexGbx * 4;
 
 				if (colorIndex < colorCount) {
-					if (liquid) {
+					if (keepColors) {
 						*(colorGbx++) = *(colorId++);
 						*(colorGbx++) = *(colorId++);
 						*(colorGbx++) = *(colorId++);
@@ -1252,9 +1383,9 @@ void BS2PC_ConvertTexturesToGbx() {
 				*(colorGbx++) = 0;
 				*(colorGbx++) = 0x80;
 			}
-			*(colorGbx++) = (liquid ? 0xff : 0x7f);
+			*(colorGbx++) = (keepColors ? 0xff : 0x7f);
 			*(colorGbx++) = 0;
-			*(colorGbx++) = (liquid ? 0xff : 0x7f);
+			*(colorGbx++) = (keepColors ? 0xff : 0x7f);
 			*(colorGbx++) = 0x80;
 		}
 		if (textureGbx->name[0] == '{') {

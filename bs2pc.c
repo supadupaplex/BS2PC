@@ -1,3 +1,5 @@
+#pragma warning(disable : 4996)
+
 /*
 Copyright (C) 1996-1997 Id Software, Inc.
 Copyright (C) 2017 Triang3l
@@ -28,6 +30,47 @@ extern const char *build_info;
 #include <stdlib.h>
 #include <string.h>
 
+bool bs2pc_errors = false;
+
+// [SDP] fix #6: config
+bool bs2pc_doMergeStrips = true;
+bool bs2pc_szReport = false;
+bool bs2pc_wadOnly = false;
+bool bs2pc_noResize = false;
+bool bs2pc_dryRun = false;
+
+#define INFO_STR	"\
+\n\
+=== .bsp to .bs2 conversion fix by Supadupaplex ===\n\
+\n\
+Fixes list:\n\
+1. increased subdivisions and vertices count caps\n\
+2. qsort WAD lumps: fix crashing on some WADs\n\
+3. slow texture lump iteration: fix animated textures\n\
+4. prefer WAD texture sizes over sizes stored in bsp: scaling artifacts can\n\
+   be avoided if WAD textures are manually resized to match power of 2\n\
+5. calculate bs2 texture lump size based on WAD texture sizes\n\
+6. added options: -nomerge, -szreport, -wadonly\n\
+7. give warning if bs2 map file is too big\n\
+8. added options: -noresize, -dryrun\n\
+9. fixed '{' textures brightness\n\
+\n\
+Usage: bs2pc [-game \"path to base WAD directory for .bsp to .bs2\"]\n\
+    [-game \"path to mod WAD directory\"] \"source file\" [\"target file\"]\n\
+    [-nomerge] [-szreport] [-wadonly] [-noresize] [-dryrun]\n\
+-nomerge  - [bsp to bs2] skip BS2PC_MergeStrips func, suggested by Triang3l:\n\
+    \"this function is unfinished. In this state it can bring\n\
+    performance boost but it also can cause glitches on water\n\
+    and transparent surfaces\"\n\
+-szreport - [bsp to bs2] report map file lump sizes\n\
+-wadonly  - [all] load textures from WAD files only, ignore textures stored\n\
+    directly in bsp/bs2 files\n\
+-noresize - [bs2 to bsp] skip resizing textures - (!) breaks maps, useful\n\
+    for PS2 texture harvesting only\n\
+-dryrun   - [all] skip write to output file (might be useful for\n\
+    troubleshooting or lump sizes inspection)\n\
+"
+
 int main(int argc, const char * const *argv) {
 	int argi;
 	bool parsingGame = false;
@@ -48,6 +91,34 @@ int main(int argc, const char * const *argv) {
 		} else {
 			if (bs2pc_strcasecmp(arg, "-game") == 0) {
 				parsingGame = true;
+			} else if (bs2pc_strcasecmp(arg, "-nomerge") == 0) {
+				/* [SDP] fix #6: skip BS2PC_MergeStrips() function call as
+				 * it was suggested by Triang3l
+				 */
+				bs2pc_doMergeStrips = false;
+				fputs("> Strip merging is disabled\n", stderr);
+			}
+			else if (bs2pc_strcasecmp(arg, "-szreport") == 0) {
+				// [SDP] fix #6: report lump sizes
+				bs2pc_szReport = true;
+				fputs("> Lump sizes report enabled\n", stderr);
+			} else if (bs2pc_strcasecmp(arg, "-wadonly") == 0) {
+				// [SDP] fix #6: ignore textures baked in the map file
+				bs2pc_wadOnly = true;
+				fputs("> Forced WAD textures\n", stderr);
+			} else if (bs2pc_strcasecmp(arg, "-noresize") == 0) {
+				/* [SDP] fix #8: don't resize textures when converting
+				 * bs2 to bsp (useful for PS2 texture harvesting only)
+				 */
+				bs2pc_noResize = true;
+				fputs("> Skip texture resize\n", stderr);
+			} else if (bs2pc_strcasecmp(arg, "-dryrun") == 0) {
+				// [SDP] fix #8: dry run
+				bs2pc_dryRun = true;
+				fputs("> Skip write to output file\n", stderr);
+			} else if (arg[0] == '-') {
+				fprintf(stderr, "> Bad argument: %s\n", arg);
+				exit(EXIT_FAILURE);
 			} else if (targetFileName == NULL) {
 				if (sourceFileName != NULL) {
 					targetFileName = arg;
@@ -58,11 +129,11 @@ int main(int argc, const char * const *argv) {
 		}
 	}
 	if (sourceFileName == NULL) {
-		fputs("Usage: [-game \"path to base WAD directory for .bsp to .bs2\"] [-game \"path to mod WAD directory\"] \"source file name\" [\"target file name\"].\n", stderr);
-		return EXIT_SUCCESS;
+		fputs(INFO_STR, stderr);
+		return EXIT_FAILURE;
 	}
 
-	fputs("Loading the source file...\n", stderr);
+	fprintf(stderr, "Loading the source file: %s\n", sourceFileName);
 	sourceFile = (unsigned char *) BS2PC_LoadFile(sourceFileName, &sourceFileSize);
 	if (sourceFileSize <= sizeof(unsigned int)) {
 		fputs("Source file size is invalid.\n", stderr);
@@ -83,6 +154,11 @@ int main(int argc, const char * const *argv) {
 
 		fputs("Compressing .bs2...\n", stderr);
 		targetFile = BS2PC_CompressWithSize(bs2pc_gbxMap, bs2pc_gbxMapSize, &targetFileSize);
+
+		if (bs2pc_dryRun) {
+			fputs("Skip writing the .bs2 file.\n", stderr);
+			goto exit;
+		}
 
 		fputs("Writing the .bs2 file...\n", stderr);
 		if (targetFileName == NULL) {
@@ -114,6 +190,11 @@ int main(int argc, const char * const *argv) {
 
 		BS2PC_ConvertGbxToId();
 
+		if (bs2pc_dryRun) {
+			fputs("Skip writing the .bsp file.\n", stderr);
+			goto exit;
+		}
+
 		fputs("Writing the .bsp file...\n", stderr);
 		if (targetFileName == NULL) {
 			targetFileNameLength = strlen(sourceFileName);
@@ -130,6 +211,11 @@ int main(int argc, const char * const *argv) {
 
 		fprintf(stderr, "%s converted to %s.\n", sourceFileName, targetFileName);
 	}
+
+exit:
+	// [SDP] change exit code if errors occured
+	if (bs2pc_errors)
+		return EXIT_FAILURE;
 
 	return EXIT_SUCCESS;
 }

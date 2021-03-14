@@ -1,3 +1,43 @@
+BS2PC PS2 fix by Supadupaplex
+=============================
+
+This version of BS2PC contains various fixes/hacks for bsp to bs2 map conversion
+that I made throughout 2017-2019 with some additional tweaks and new stuff
+(I hope I didn't break anything when I was putting this thing together).
+
+Fixes list:
+1. increased subdivisions and vertices count caps
+2. qsort WAD lumps: fix crashing on some WADs
+3. slow texture lump iteration: fix animated textures
+4. prefer WAD texture sizes over sizes stored in bsp: scaling artifacts can
+   be avoided if WAD textures are manually resized to match power of 2
+5. calculate bs2 texture lump size based on WAD texture sizes
+6. added options: -nomerge, -szreport, -wadonly
+7. give warning if bs2 map file is too big
+8. added options: -noresize, -dryrun
+9. fixed '{' textures brightness
+
+[Latest builds](https://github.com/supadupaplex/BS2PC/releases)
+
+
+    Usage: bs2pc [-game \"path to base WAD directory for .bsp to .bs2\"]
+        [-game \"path to mod WAD directory\"] \"source file\" [\"target file\"]
+        [-nomerge] [-szreport] [-wadonly] [-noresize] [-dryrun]
+    -nomerge  - [bsp to bs2] skip BS2PC_MergeStrips func, suggested by Triang3l:
+        \"this function is unfinished. In this state it can bring
+        performance boost but it also can cause glitches on water
+        and transparent surfaces\"
+    -szreport - [bsp to bs2] report map file lump sizes
+    -wadonly  - [all] load textures from WAD files only, ignore textures stored
+        directly in bsp/bs2 files
+    -noresize - [bs2 to bsp] skip resizing textures - (!) breaks maps, useful
+        for PS2 texture harvesting only
+    -dryrun   - [all] skip write to output file (might be useful for
+        troubleshooting or lump sizes inspection)
+
+
+Original readme:
+
 BS2PC
 =====
 

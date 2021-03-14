@@ -75,6 +75,15 @@ void BS2PC_ConvertGbxToId();
 void BS2PC_ConvertIdToGbx();
 extern const unsigned char bs2pc_nodrawIdTexture[1152];
 
+extern bool bs2pc_errors;
+
+// [SDP] fix #6: config export
+extern bool bs2pc_doMergeStrips;
+extern bool bs2pc_szReport;
+extern bool bs2pc_wadOnly;
+extern bool bs2pc_noResize;
+extern bool bs2pc_dryRun;
+
 // Polygon subdivision
 
 #pragma pack(push, 4)
