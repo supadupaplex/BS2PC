@@ -2,6 +2,7 @@
 #include "bs2pc_lumps.h"
 #include <stdbool.h>
 #include <stdlib.h>
+#include <limits.h>
 #if defined(_MSC_VER) || defined(_WIN32)
 #include <malloc.h>
 #define bs2pc_alloca _alloca
