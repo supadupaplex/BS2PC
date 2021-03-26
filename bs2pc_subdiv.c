@@ -31,9 +31,11 @@ typedef struct {
 static bs2pc_polyStripSet_t bs2pc_polyStripSets[2];
 static unsigned int bs2pc_currentPolyStripSet;
 
+#if 0 // unused
 static unsigned short bs2pc_polyCurrentStripIndices[BS2PC_MAX_POLY_STRIP_INDICES];
 static unsigned short bs2pc_polyCurrentStripTris[BS2PC_MAX_POLY_STRIP_INDICES];
 static unsigned int bs2pc_polyCurrentStripLength;
+#endif
 
 static void BS2PC_BoundPoly(unsigned int numverts, float *verts, float mins[3], float maxs[3]) {
 	unsigned int i, j;

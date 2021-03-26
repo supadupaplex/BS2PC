@@ -10,6 +10,7 @@
 #define bs2pc_strncasecmp _strnicmp
 #else
 #include <alloca.h>
+#include <strings.h>
 #define bs2pc_alloca alloca
 #define bs2pc_strcasecmp strcasecmp
 #define bs2pc_strncasecmp strncasecmp

@@ -62,7 +62,7 @@ static void BS2PC_ProcessGbxTextureLump() {
 		exit(EXIT_FAILURE);
 	}
 
-	BS2PC_AllocReplace(&bs2pc_gbxTexturesSpecial, count * sizeof(bool), true);
+	BS2PC_AllocReplace((void **) &bs2pc_gbxTexturesSpecial, count * sizeof(bool), true);
 
 	bs2pc_idTextureLumpSize = sizeof(unsigned int) /* texture count */ +
 			count * (sizeof(bspoffset_t) /* offset */ + sizeof(dmiptex_id_t) + (2 + 768 + 2));
@@ -169,7 +169,7 @@ static void BS2PC_ProcessIdTextureLump() {
 	}
 
 	// Replacing textures with UINT_MAX offset with nodraw.
-	BS2PC_AllocReplace(&bs2pc_idValidTextureMap, count * sizeof(unsigned int), true);
+	BS2PC_AllocReplace((void **) &bs2pc_idValidTextureMap, count * sizeof(unsigned int), true);
 	BS2PC_AllocReplace((void **) &bs2pc_idTextures, (count + 1) * sizeof(dmiptex_id_t *), false); // + 1 for nodraw.
 	// Check if we have any invalid textures at all.
 	for (index = 0; index < count; ++index) {
@@ -219,7 +219,7 @@ static void BS2PC_ProcessIdTextureLump() {
 	}
 	bs2pc_idValidTextureCount = validCount;
 
-	BS2PC_AllocReplace(&bs2pc_idTextureAdditionalInfo, validCount * sizeof(bs2pc_idTextureAdditionalInfo_t), false);
+	BS2PC_AllocReplace((void **) &bs2pc_idTextureAdditionalInfo, validCount * sizeof(bs2pc_idTextureAdditionalInfo_t), false);
 	bs2pc_idAnimatedStart = UINT_MAX;
 	bs2pc_idAnimatedCount = 0;
 	bs2pc_gbxTextureDataSize = 0;
@@ -352,11 +352,11 @@ static void BS2PC_BuildGbxNodrawSkippingInfo() {
 		exit(EXIT_FAILURE);
 	}
 
-	BS2PC_AllocReplace(&bs2pc_nodrawFaceMap, faceCount * sizeof(unsigned int), false);
+	BS2PC_AllocReplace((void **) &bs2pc_nodrawFaceMap, faceCount * sizeof(unsigned int), false);
 	bs2pc_faceCountWithoutNodraw = 0;
-	BS2PC_AllocReplace(&bs2pc_nodrawMarksurfaceMap, marksurfaceCount * sizeof(unsigned int), false);
+	BS2PC_AllocReplace((void **) &bs2pc_nodrawMarksurfaceMap, marksurfaceCount * sizeof(unsigned int), false);
 	bs2pc_marksurfaceCountWithoutNodraw = 0;
-	BS2PC_AllocReplace(&bs2pc_idMarksurfaceLumpWithoutNodraw, marksurfaceCount * sizeof(dmarksurface_id_t), false);
+	BS2PC_AllocReplace((void **) &bs2pc_idMarksurfaceLumpWithoutNodraw, marksurfaceCount * sizeof(dmarksurface_id_t), false);
 
 	faces = (const dface_gbx_t *) BS2PC_GbxLump(LUMP_GBX_FACES);
 
@@ -403,7 +403,7 @@ static void BS2PC_SkipNodrawInGbxMarksurfaceRange(unsigned int inFirst, unsigned
 }
 
 typedef struct {
-	const char *polys;
+	const unsigned char *polys;
 	unsigned int offset;
 	unsigned int size;
 } bs2pc_faceSubdivision_t;
@@ -424,7 +424,7 @@ void BS2PC_SubdivideIdSurfaces() {
 		return;
 	}
 
-	BS2PC_AllocReplace(&bs2pc_faceSubdivisions, faceCount * sizeof(bs2pc_faceSubdivision_t), true);
+	BS2PC_AllocReplace((void **) &bs2pc_faceSubdivisions, faceCount * sizeof(bs2pc_faceSubdivision_t), true);
 
 	for (faceIndex = 0, subdivision = bs2pc_faceSubdivisions; faceIndex < faceCount; ++faceIndex, ++face, ++subdivision) {
 		textureIndex = bs2pc_idValidTextureMap[texinfos[face->texinfo].miptex];
@@ -799,8 +799,10 @@ static void BS2PC_ConvertNodesToGbx() {
 	const dnode_id_t *id = (const dnode_id_t *) BS2PC_IdLump(LUMP_ID_NODES);
 	dnode_gbx_t *gbx = (dnode_gbx_t *) BS2PC_GbxLump(LUMP_GBX_NODES);
 	unsigned int index, count = BS2PC_IdLumpSize(LUMP_ID_NODES) / sizeof(dnode_id_t);
+#if 0 // unused
 	dleaf_gbx_t *gbxLeafs = (dleaf_gbx_t *) BS2PC_GbxLump(LUMP_GBX_LEAFS);
 	unsigned int leafCount = BS2PC_IdLumpSize(LUMP_ID_LEAFS) / sizeof(dleaf_id_t);
+#endif
 	unsigned int offset = BS2PC_GbxLumpOffset(LUMP_GBX_NODES);
 
 	for (index = 0; index < count; ++index, ++id, ++gbx, offset += sizeof(dnode_gbx_t)) {
@@ -1011,7 +1013,7 @@ static void BS2PC_ConvertEntitiesToId() {
 	unsigned int index, count = BS2PC_GbxLumpSize(LUMP_GBX_ENTITIES);
 
 	char *stringStart = NULL;
-	unsigned int stringLength;
+	unsigned int stringLength = 0;
 
 	for (index = 0; index < count; ++index, ++gbx, ++id) {
 		char character = *gbx;
@@ -1051,7 +1053,7 @@ static void BS2PC_ConvertEntitiesToGbx() {
 	unsigned int index, count = BS2PC_IdLumpSize(LUMP_ID_ENTITIES);
 
 	char *stringStart = NULL;
-	unsigned int stringLength;
+	unsigned int stringLength = 0;
 
 	for (index = 0; index < count; ++index, ++id, ++gbx) {
 		char character = *id;
@@ -1322,7 +1324,7 @@ void BS2PC_ConvertTexturesToGbx() {
 			}
 		} else {
 			unsigned int x, y;
-			char *dest = bs2pc_gbxMap + gbxMipOffset;
+			unsigned char *dest = bs2pc_gbxMap + gbxMipOffset;
 			fprintf(stderr, "[ERROR] Texture %-16s not found or is incomplete in WADs, replacing with a checkerboard.\n", textureGbx->name);
 			bs2pc_errors = true;
 			for (y = 0; y < tempHeight; ++y) {

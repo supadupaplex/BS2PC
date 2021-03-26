@@ -207,7 +207,7 @@ void BS2PC_LoadWadsFromEntities(const char *entities, unsigned int entitiesSize)
 	}
 }
 
-static int BS2PC_WadSearchComparison(const void *keyLump, const void *lump) {
+static inline int BS2PC_WadSearchComparison(const void *keyLump, const void *lump) {
 	return bs2pc_strncasecmp(((const bs2pc_wadLumpInfo_t *) keyLump)->name,
 			((const bs2pc_wadLumpInfo_t *) lump)->name,
 			sizeof(((const bs2pc_wadLumpInfo_t *) keyLump)->name) - 1);
@@ -272,7 +272,7 @@ unsigned char *BS2PC_LoadTextureFromWad(const char *name) {
 
 	if (bs2pc_wadLumpBufferSize < bs2pc_maxWadLumpSize) {
 		bs2pc_wadLumpBufferSize = bs2pc_maxWadLumpSize;
-		BS2PC_AllocReplace(&bs2pc_wadLumpBuffer, bs2pc_wadLumpBufferSize, false);
+		BS2PC_AllocReplace((void **) &bs2pc_wadLumpBuffer, bs2pc_wadLumpBufferSize, false);
 	}
 
 	if (fseek(wad->file, lumpInfo->filepos, SEEK_SET) != 0) {

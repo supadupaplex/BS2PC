@@ -76,7 +76,7 @@ int main(int argc, const char * const *argv) {
 	bool parsingGame = false;
 	const char *sourceFileName = NULL, *targetFileName = NULL;
 	unsigned char *sourceFile;
-	long sourceFileSize;
+	unsigned int sourceFileSize;
 	unsigned int beginning;
 	size_t targetFileNameLength;
 	char *targetFileNameBuffer;
