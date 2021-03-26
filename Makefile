@@ -22,7 +22,7 @@ CC=gcc
 LD=gcc
 CFLAGS=-c -std=c99 -Wall -m32 -D ZLIB_STATIC -D __USE_MINGW_ANSI_STDIO \
 	-Wno-unknown-pragmas
-LDFLAGS=-m32 $(LIBS)
+LDFLAGS=-m32 -lm $(LIBS)
 
 # debug
 ifdef DEBUG
@@ -53,7 +53,7 @@ buildinfo.c: ALWAYS
 	echo "const char *build_info = \"Build info: \\" > $@
 	echo "[head] `git log --pretty=format:'%h' -n 1 || :`, \\" >> $@
 	(LANG=en ; date -u +"[date] %b %d, %Y %H:%M:%S \\") >> $@
-	echo "\\n\";" >> $@
+	echo '\\n";' >> $@
 
 bs2pc: cpu-chk dirs zlib-build buildinfo.c $(OBJS)
 	$(LD) $(OBJS) -o $(BINDIR)/bs2pc $(LDFLAGS)
