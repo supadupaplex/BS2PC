@@ -81,6 +81,8 @@ extern bool bs2pc_errors;
 
 // [SDP] fix #6: config export
 extern bool bs2pc_doMergeStrips;
+extern bool bs2pc_doPolyDiv;
+extern float bs2pc_polyDivSz;
 extern bool bs2pc_szReport;
 extern bool bs2pc_wadOnly;
 extern bool bs2pc_noResize;

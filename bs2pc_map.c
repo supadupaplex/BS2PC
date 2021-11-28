@@ -450,7 +450,8 @@ static void BS2PC_PreProcessIdMap() {
 	BS2PC_LoadWadsFromEntities((const char *) BS2PC_IdLump(LUMP_ID_ENTITIES), BS2PC_IdLumpSize(LUMP_ID_ENTITIES));
 	fputs("Processing the texture lump...\n", stderr);
 	BS2PC_ProcessIdTextureLump();
-	fputs("Subdividing alphatest and turbulent surfaces...\n", stderr);
+	if (bs2pc_doPolyDiv)
+		fputs("Subdividing alphatest and turbulent surfaces...\n", stderr);
 	BS2PC_SubdivideIdSurfaces(); // Depends on ProcessIdTextureLump.
 }
 

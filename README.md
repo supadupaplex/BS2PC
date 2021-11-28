@@ -16,13 +16,22 @@ Fixes list:
 7. give warning if bs2 map file is too big
 8. added options: -noresize, -dryrun
 9. fixed '{' textures brightness
+10. ability to tweak subdivision with -divsz or to disable it with -nodiv
 
 [Latest builds](https://github.com/supadupaplex/BS2PC/releases)
 
 
     Usage: bs2pc [-game \"path to base WAD directory for .bsp to .bs2\"]
         [-game \"path to mod WAD directory\"] \"source file\" [\"target file\"]
-        [-nomerge] [-szreport] [-wadonly] [-noresize] [-dryrun]
+        [-szreport] [-wadonly] [-dryrun] [-nomerge] [-nodiv] [-divsz X]
+        [-noresize]
+    -nodiv    - [bsp to bs2] omit subdivision step. This option can reduce map
+        RAM overhead and also improve performance a bit, especially on maps with
+        giant water surfaces. Waves can look weird though, you may need to set
+        "WaveHeight" to 0 in the entity properties
+    -divsz    - [bsp to bs2] set subdivision size (default is 8). By increasing
+        this parameter you can reduce number of subdivisions and thus to get
+        benefits of -nodiv option up to a certain degree
     -nomerge  - [bsp to bs2] skip BS2PC_MergeStrips func, suggested by Triang3l:
         \"this function is unfinished. In this state it can bring
         performance boost but it also can cause glitches on water

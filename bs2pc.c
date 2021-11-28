@@ -34,6 +34,8 @@ bool bs2pc_errors = false;
 
 // [SDP] fix #6: config
 bool bs2pc_doMergeStrips = true;
+bool bs2pc_doPolyDiv = true;
+float bs2pc_polyDivSz = 8.0f;
 bool bs2pc_szReport = false;
 bool bs2pc_wadOnly = false;
 bool bs2pc_noResize = false;
@@ -54,10 +56,19 @@ Fixes list:\n\
 7. give warning if bs2 map file is too big\n\
 8. added options: -noresize, -dryrun\n\
 9. fixed '{' textures brightness\n\
+10. ability to tweak subdivision with -divsz or to disable it with -nodiv\n\
 \n\
 Usage: bs2pc [-game \"path to base WAD directory for .bsp to .bs2\"]\n\
     [-game \"path to mod WAD directory\"] \"source file\" [\"target file\"]\n\
-    [-nomerge] [-szreport] [-wadonly] [-noresize] [-dryrun]\n\
+    [-szreport] [-wadonly] [-dryrun] [-nomerge] [-nodiv] [-divsz X]\n\
+    [-noresize]\n\
+-nodiv    - [bsp to bs2] omit subdivision step. This option can reduce map\n\
+    RAM overhead and also improve performance a bit, especially on maps with\n\
+    giant water surfaces. Waves can look weird though, you may need to set\n\
+    \"WaveHeight\" to 0 in the entity properties\n\
+-divsz    - [bsp to bs2] set subdivision size (default is 8). By increasing\n\
+    this parameter you can reduce number of subdivisions and thus to get\n\
+    benefits of -nodiv option up to a certain degree\n\
 -nomerge  - [bsp to bs2] skip BS2PC_MergeStrips func, suggested by Triang3l:\n\
     \"this function is unfinished. In this state it can bring\n\
     performance boost but it also can cause glitches on water\n\
@@ -74,6 +85,7 @@ Usage: bs2pc [-game \"path to base WAD directory for .bsp to .bs2\"]\n\
 int main(int argc, const char * const *argv) {
 	int argi;
 	bool parsingGame = false;
+	bool parsingDivSz = false;
 	const char *sourceFileName = NULL, *targetFileName = NULL;
 	unsigned char *sourceFile;
 	unsigned int sourceFileSize;
@@ -88,6 +100,12 @@ int main(int argc, const char * const *argv) {
 		if (parsingGame) {
 			BS2PC_AddWadDirectory(arg);
 			parsingGame = false;
+		} else if (parsingDivSz) {
+			parsingDivSz = false;
+			bs2pc_polyDivSz = atof(arg);
+			if (bs2pc_polyDivSz < 1.0f)
+				bs2pc_polyDivSz = 1.0f;
+			fprintf(stderr, "> Subdivision size was set to: %f\n", bs2pc_polyDivSz);
 		} else {
 			if (bs2pc_strcasecmp(arg, "-game") == 0) {
 				parsingGame = true;
@@ -97,8 +115,15 @@ int main(int argc, const char * const *argv) {
 				 */
 				bs2pc_doMergeStrips = false;
 				fputs("> Strip merging is disabled\n", stderr);
-			}
-			else if (bs2pc_strcasecmp(arg, "-szreport") == 0) {
+			} else if (bs2pc_strcasecmp(arg, "-divsz") == 0) {
+				// [SDP] fix #10: customize subdivision size
+				parsingDivSz = true;
+			} else if (bs2pc_strcasecmp(arg, "-nodiv") == 0) {
+				// [SDP] fix #10: omit subdivision step
+				bs2pc_doPolyDiv = false;
+				bs2pc_doMergeStrips = false;
+				fputs("> Subdivision and strip merging are disabled\n", stderr);
+			} else if (bs2pc_strcasecmp(arg, "-szreport") == 0) {
 				// [SDP] fix #6: report lump sizes
 				bs2pc_szReport = true;
 				fputs("> Lump sizes report enabled\n", stderr);
@@ -149,7 +174,16 @@ int main(int argc, const char * const *argv) {
 		bs2pc_idMapSize = sourceFileSize;
 		bs2pc_idMap = sourceFile;
 
-		fputs("WARNING: .bsp to .bs2 is INCOMPLETE! Polygon subdivision is broken! DO NOT share any PS2 maps produced by this build!\n", stderr);
+		if (bs2pc_doPolyDiv)
+			fputs("WARNING: .bsp to .bs2 is INCOMPLETE!\n"
+			      "\t Polygon subdivision is broken! \n"
+			      "\t DO NOT share any PS2 maps produced by this build!\n"
+			      "\t [!] Check out -nomerge, -nodiv and -divsz options\n",
+			      stderr);
+		else
+			fputs("WARNING: subdivision is disabled. Water waves can look\n"
+			      "\t weird, you may need to set \"WaveHeight\" to 0 disable"
+			      "\t the waves\n", stderr);
 		BS2PC_ConvertIdToGbx();
 
 		fputs("Compressing .bs2...\n", stderr);

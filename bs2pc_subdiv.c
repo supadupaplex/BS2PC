@@ -67,7 +67,8 @@ static unsigned int BS2PC_AddPolyVertex(float vert[3]) {
 		}
 	}
 	if (bs2pc_polyVertCount >= BS2PC_MAX_POLY_VERTS) {
-		fputs("Too many vertices after face subdivision.\n", stderr);
+		fputs("Too many vertices after face subdivision.\n"
+		      "[!] You can try to increase -divsz or to use -nodiv\n", stderr);
 		exit(EXIT_FAILURE);
 	}
 	otherVert[0] = vert[0];
@@ -100,7 +101,9 @@ static void BS2PC_SubdividePolygon(unsigned int numverts, float *verts) {
 	for (i = 0; i < 3; ++i) {
 		m = (mins[i] + maxs[i]) * 0.5f;
 		m = bs2pc_subdivideSize * floorf(m * (1.0f / bs2pc_subdivideSize) + 0.5f);
-		if ((maxs[i] - m < 8.0f) || (m - mins[i] < 8.0f)) {
+		if (!bs2pc_doPolyDiv) // Fix #10: skip subdiv, custom subdiv size
+			continue;
+		if ((maxs[i] - m < bs2pc_polyDivSz) || (m - mins[i] < bs2pc_polyDivSz)) {
 			continue;
 		}
 
@@ -164,7 +167,8 @@ static void BS2PC_SubdividePolygon(unsigned int numverts, float *verts) {
 
 	stripSet = &bs2pc_polyStripSets[bs2pc_currentPolyStripSet];
 	if (stripSet->stripCount >= BS2PC_MAX_POLY_STRIPS || stripSet->indexCount + numverts > BS2PC_MAX_POLY_STRIP_INDICES) {
-		fputs("Too many triangle strips or vertex indices after face subdivision.\n", stderr);
+		fputs("Too many triangle strips or vertex indices after face subdivision.\n"
+		      "[!] You can try options: -divsz, -nomerge or -nodiv\n", stderr);
 		exit(EXIT_FAILURE);
 	}
 	strip = &stripSet->strips[stripSet->stripCount++];
