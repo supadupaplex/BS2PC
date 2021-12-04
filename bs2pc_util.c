@@ -229,9 +229,43 @@ void *BS2PC_CompressWithSize(const void *source, unsigned int sourceSize, unsign
 	float TotalSize = DecomprSize + ComprSize;
 	fprintf(stderr, "\tDecompressed map size:\t %.2f MiB \n", DecomprSize);
 	fprintf(stderr, "\tCompressed map size:\t %.2f MiB \n", ComprSize);
-	fprintf(stderr, "\tTotal map size:\t\t %.2f MiB \n", TotalSize);
+//	fprintf(stderr, "\tTotal map size:\t\t %.2f MiB \n", TotalSize);
 	if (DecomprSize > 8.0f || TotalSize > 12.0f)
 		fputs("[WARNING] map file is too big and can cause crashes\n", stderr);
+
+#if 1 // Evaluate PS2 RAM that will be used for map
+	dmodel_id_t *mdls = (dmodel_id_t *) BS2PC_IdLump(LUMP_ID_MODELS);
+	dface_id_t *faces = (dface_id_t *) BS2PC_IdLump(LUMP_ID_FACES);
+	int nummdl = BS2PC_IdLumpSize(LUMP_ID_MODELS) / sizeof(dmodel_id_t);
+	int numedgerefs, m, f;
+
+	for (numedgerefs = 0, m = 0; m < nummdl; m++)
+		for (f = mdls[m].firstface; f < (mdls[m].firstface + mdls[m].numfaces); f++)
+			numedgerefs += faces[f].numedges;
+
+	// Purely empirical, may be inaccurate
+	int mem_surf = (numedgerefs * 2 * 0x10 + 0x10000) & ~0xFFFF;
+	int mem_lm = (BS2PC_IdLumpSize(LUMP_ID_LIGHTING) * 4 / 3 + 0x10000) & ~0xFFFF;
+	int mem_total = sourceSize + mem_surf + mem_lm;
+	fprintf(stderr, "\tEstimated PS2 RAM usage (experimental):\n");
+	fprintf(stderr, "\t\tBS2 map:            %.2f MiB (%d b)\n", DecomprSize, sourceSize);
+	fprintf(stderr, "\t\tLigtmaps:           %.2f MiB (%d b)\n", (float) mem_lm / MiB, mem_lm);
+	fprintf(stderr, "\t\tSurfaceDisplayList: %.2f MiB (%d b)\n", (float) mem_surf / MiB, mem_surf);
+	fprintf(stderr, "\t\tTotal:              %.2f MiB (%d b)\n", (float) mem_total / MiB, mem_total);
+#endif
+
+#if 0 // Further assumptions on PS2 RAM usage
+	#define PS2_AVAIL_MEM	0x011F5600
+	#define PS2_MEM_OTHER	(0x3cd3c0 /* valve.pak */ + \
+		540864 /* edicts */ + 104128 /* client */ + \
+		131136 /* zone */ + (67648 * 6) /* skybox */)
+	int mem_left = PS2_AVAIL_MEM - mem_total - PS2_MEM_OTHER;
+	fprintf(stderr, "\t\t==========================================\n");
+	fprintf(stderr, "\t\tPS2 mem pool:       %.2f MiB (%d b)\n", (float) PS2_AVAIL_MEM / MiB, PS2_AVAIL_MEM);
+	fprintf(stderr, "\t\tMap file:           %.2f MiB (%d b)\n", (float) mem_total / MiB, mem_total);
+	fprintf(stderr, "\t\tOther:              %.2f MiB (%d b)\n", (float) PS2_MEM_OTHER / MiB, PS2_MEM_OTHER);
+	fprintf(stderr, "\t\tMem left for cache: %.2f MiB (%d b)\n", (float) mem_left / MiB, mem_left);
+#endif
 
 	return target;
 }
